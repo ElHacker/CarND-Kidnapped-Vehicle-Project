@@ -21,6 +21,7 @@ using namespace std;
 
 // Random generator to be used globally.
 static default_random_engine gen;
+static const double YAW_RATE_ZERO_THRESHOLD = 0.00001;
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
   // TODO: Set the number of particles. Initialize all particles to first
@@ -46,6 +47,9 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     p.x += N_x_init(gen);
     p.y += N_y_init(gen);
     p.theta += N_theta_init(gen);
+
+    // Store the generated particle.
+    particles.push_back(p);
   }
 
   is_initialized = true;
@@ -53,12 +57,36 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 
 void ParticleFilter::prediction(double delta_t, double std_pos[],
     double velocity, double yaw_rate) {
-	// TODO: Add measurements to each particle and add random Gaussian noise.
+	// Add measurements to each particle and add random Gaussian noise.
   // NOTE: When adding noise you may find std::normal_distribution and
   // std::default_random_engine useful.
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
 
+  // Will be used to add random Gaussian noise
+  normal_distribution<double> N_x(0, std_pos[0]);
+  normal_distribution<double> N_y(0, std_pos[1]);
+  normal_distribution<double> N_theta(0, std_pos[2]);
+
+  for (int i = 0; i < num_particles; i++) {
+    double currentTheta = particles[i].theta;
+    if (fabs(yaw_rate) < YAW_RATE_ZERO_THRESHOLD) {
+      particles[i].x += velocity * delta_t * cos(currentTheta);
+      particles[i].y += velocity * delta_t * sin(currentTheta);
+    } else {
+      particles[i].x += velocity / yaw_rate *
+        (sin(currentTheta + yaw_rate) + yaw_rate * delta_t) -
+          sin(currentTheta);
+      particles[i].y += velocity / yaw_rate * cos(currentTheta) -
+        cos(currentTheta + yaw_rate * delta_t);
+      particles[i].theta += yaw_rate * delta_t;
+    }
+
+    // Add noise to particles.
+    particles[i].x += N_x(gen);
+    particles[i].y += N_y(gen);
+    particles[i].theta += N_theta(gen);
+  }
 }
 
 void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted,
